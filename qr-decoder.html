@@ -130,7 +130,7 @@
 <header>
   <h1>⬡ QR File Decoder</h1>
   <p>Scan QR codes to reassemble any file</p>
-  <span class="version-badge">v1.3.0 · ZXing engine</span>
+  <span class="version-badge">v1.4.0 · ZXing engine</span>
 </header>
 
 <div id="landing">
@@ -205,9 +205,8 @@
 
 <div class="error-toast" id="error-toast"></div>
 
-<!-- ZXing pre-bundled UMD — no module resolution issues -->
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.4/build/umd/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.2/build/umd/index.min.js"></script>
+<!-- ZXing self-contained UMD — exposes window.ZXingBrowser -->
+<script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
 
 <script>
 const startBtn    = document.getElementById('start-btn');
