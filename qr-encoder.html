@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR File Encoder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #00e5ff;
+    --accent-dim: rgba(0,229,255,0.12);
+    --radius: 10px;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 4rem;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+  header h1 {
+    font-size: 1.7rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+  }
+  header p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: 0.4rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 560px;
+    margin-bottom: 1.25rem;
+  }
+  .card-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 1rem;
+  }
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+  }
+  .drop-zone p { color: var(--text-muted); font-size: 0.9rem; }
+  .drop-zone strong { color: var(--text); }
+  .file-info {
+    display: none;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 0.85rem;
+  }
+  .file-info.visible { display: flex; align-items: center; gap: 0.75rem; }
+  .file-info .fname { font-family: var(--mono); color: var(--accent); word-break: break-all; }
+  .file-info .fsize { color: var(--text-muted); white-space: nowrap; }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .setting-row:last-child { margin-bottom: 0; }
+  .setting-row label { font-size: 0.9rem; color: var(--text-muted); }
+  .setting-row input[type="number"], .setting-row select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.4rem 0.7rem;
+    font-size: 0.9rem;
+    font-family: var(--font);
+    width: 120px;
+    text-align: right;
+  }
+  .setting-row input[type="number"]:focus, .setting-row select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    width: 100%;
+    justify-content: center;
+    font-size: 1rem;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  #viewer { display: none; width: 100%; max-width: 560px; }
+  .qr-counter {
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .qr-counter strong { color: var(--text); font-size: 1rem; }
+  .qr-stage {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  #qr-canvas-wrap {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    display: inline-block;
+    position: relative;
+  }
+  .qr-label {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .nav-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    justify-content: center;
+  }
+  .btn-nav {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .btn-nav:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  .btn-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+  .nav-pos {
+    font-size: 1.1rem;
+    font-weight: 600;
+    min-width: 80px;
+    text-align: center;
+    font-family: var(--mono);
+    color: var(--accent);
+  }
+  .progress-dots {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 400px;
+  }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  .dot.active { background: var(--accent); }
+  .dot.visited { background: #2d6a4f; }
+  .qr-meta {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+  .btn-reset {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 8px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    width: 100%;
+    max-width: 560px;
+    margin-top: 0.25rem;
+  }
+  .btn-reset:hover { border-color: var(--text-muted); color: var(--text); }
+  .error-msg {
+    background: rgba(255,80,80,0.12);
+    border: 1px solid rgba(255,80,80,0.3);
+    color: #ff9999;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    display: none;
+    width: 100%;
+    max-width: 560px;
+    margin-bottom: 0.75rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ QR File Encoder</h1>
+  <p>Split any file into scannable QR codes</p>
+</header>
+
+<div class="card" id="upload-card">
+  <div class="card-title">Select file</div>
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input">
+    <span class="drop-icon">📂</span>
+    <p><strong>Drop a file here</strong> or click to browse</p>
+    <p style="margin-top:0.35rem;font-size:0.8rem;">Supports any file type · text or binary</p>
+  </div>
+  <div class="file-info" id="file-info">
+    <span>📄</span>
+    <span class="fname" id="fname-label"></span>
+    <span class="fsize" id="fsize-label"></span>
+  </div>
+</div>
+
+<div class="card" id="settings-card">
+  <div class="card-title">Settings</div>
+  <div class="setting-row">
+    <label>Max bytes per QR</label>
+    <input type="number" id="chunk-size" value="800" min="100" max="2953" step="50">
+  </div>
+  <div class="hint" style="margin-bottom:0.9rem;">Lower = smaller QR, easier to scan. Max 2953 bytes. Recommended: 500–900.</div>
+  <div class="setting-row">
+    <label>QR error correction</label>
+    <select id="ecc-level">
+      <option value="L">L — 7%</option>
+      <option value="M" selected>M — 15%</option>
+      <option value="Q">Q — 25%</option>
+      <option value="H">H — 30%</option>
+    </select>
+  </div>
+  <div class="hint">Higher correction = more robust but denser QR code.</div>
+</div>
+
+<div class="error-msg" id="error-msg"></div>
+
+<button class="btn btn-primary" id="encode-btn" disabled>Generate QR Codes</button>
+
+<div id="viewer">
+  <div class="qr-counter">
+    QR <strong id="qr-current">1</strong> of <strong id="qr-total">1</strong>
+  </div>
+  <div class="qr-stage">
+    <div id="qr-canvas-wrap">
+      <div id="qr-render"></div>
+      <span class="qr-label" id="qr-badge">QR 1 / 1</span>
+    </div>
+    <div class="qr-meta" id="qr-meta"></div>
+    <div class="nav-row">
+      <button class="btn-nav" id="btn-prev">← Prev</button>
+      <span class="nav-pos" id="nav-pos">1 / 1</span>
+      <button class="btn-nav" id="btn-next">Next →</button>
+    </div>
+    <div class="progress-dots" id="progress-dots"></div>
+  </div>
+  <button class="btn-reset" id="reset-btn">↩ Encode another file</button>
+</div>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const fileInfo = document.getElementById('file-info');
+const fnameLabel = document.getElementById('fname-label');
+const fsizeLabel = document.getElementById('fsize-label');
+const encodeBtn = document.getElementById('encode-btn');
+const chunkSizeInput = document.getElementById('chunk-size');
+const eccLevel = document.getElementById('ecc-level');
+const viewer = document.getElementById('viewer');
+const uploadCard = document.getElementById('upload-card');
+const settingsCard = document.getElementById('settings-card');
+const errorMsg = document.getElementById('error-msg');
+const qrRender = document.getElementById('qr-render');
+const qrBadge = document.getElementById('qr-badge');
+const qrCurrent = document.getElementById('qr-current');
+const qrTotal = document.getElementById('qr-total');
+const navPos = document.getElementById('nav-pos');
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+const progressDots = document.getElementById('progress-dots');
+const qrMeta = document.getElementById('qr-meta');
+
+let selectedFile = null;
+let qrChunks = [];
+let currentIdx = 0;
+let qrInstance = null;
+const visited = new Set();
+
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = 'block';
+}
+function clearError() {
+  errorMsg.style.display = 'none';
+}
+
+function handleFile(file) {
+  clearError();
+  selectedFile = file;
+  fnameLabel.textContent = file.name;
+  fsizeLabel.textContent = fmtSize(file.size);
+  fileInfo.classList.add('visible');
+  encodeBtn.disabled = false;
+}
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+encodeBtn.addEventListener('click', () => {
+  if (!selectedFile) return;
+  clearError();
+  const reader = new FileReader();
+  reader.onload = e => {
+    const arrayBuffer = e.target.result;
+    const bytes = new Uint8Array(arrayBuffer);
+    const b64 = uint8ToBase64(bytes);
+    const chunkSize = Math.max(100, Math.min(2953, parseInt(chunkSizeInput.value) || 800));
+    const ecc = eccLevel.value;
+    buildQRChunks(selectedFile.name, b64, chunkSize, ecc);
+  };
+  reader.readAsArrayBuffer(selectedFile);
+});
+
+function uint8ToBase64(bytes) {
+  let bin = '';
+  const chunkSz = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSz) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunkSz));
+  }
+  return btoa(bin);
+}
+
+function buildQRChunks(filename, b64data, chunkSize, ecc) {
+  const total_chunks = Math.ceil(b64data.length / chunkSize);
+  qrChunks = [];
+
+  const headerPayload = JSON.stringify({
+    type: 'QRF_HEADER',
+    v: 1,
+    total: total_chunks,
+    name: filename,
+    size: selectedFile.size,
+    ecc: ecc
+  });
+
+  const maxHeaderSize = 2953;
+  if (headerPayload.length > maxHeaderSize) {
+    showError('Filename too long for QR code header. Please rename your file.');
+    return;
+  }
+
+  qrChunks.push(headerPayload);
+
+  for (let i = 0; i < total_chunks; i++) {
+    const slice = b64data.slice(i * chunkSize, (i + 1) * chunkSize);
+    const payload = JSON.stringify({
+      type: 'QRF_DATA',
+      v: 1,
+      idx: i,
+      total: total_chunks,
+      data: slice
+    });
+    if (payload.length > 2953) {
+      showError(`Chunk ${i+1} exceeds QR capacity. Reduce max bytes per QR.`);
+      return;
+    }
+    qrChunks.push(payload);
+  }
+
+  currentIdx = 0;
+  visited.clear();
+  renderViewer();
+}
+
+function renderViewer() {
+  uploadCard.style.display = 'none';
+  settingsCard.style.display = 'none';
+  encodeBtn.style.display = 'none';
+  viewer.style.display = 'block';
+
+  const total = qrChunks.length;
+  qrTotal.textContent = total;
+
+  buildDots(total);
+  showQR(0);
+}
+
+function buildDots(total) {
+  progressDots.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.title = i === 0 ? 'Header QR' : `Data QR ${i}`;
+    d.addEventListener('click', () => showQR(i));
+    progressDots.appendChild(d);
+  }
+}
+
+function updateDots() {
+  const dots = progressDots.querySelectorAll('.dot');
+  dots.forEach((d, i) => {
+    d.className = 'dot' + (visited.has(i) && i !== currentIdx ? ' visited' : '') + (i === currentIdx ? ' active' : '');
+  });
+}
+
+function showQR(idx) {
+  currentIdx = idx;
+  visited.add(idx);
+  const total = qrChunks.length;
+  const isHeader = idx === 0;
+
+  qrCurrent.textContent = idx + 1;
+  navPos.textContent = (idx + 1) + ' / ' + total;
+  qrBadge.textContent = isHeader ? 'Header QR' : `QR ${idx} / ${total - 1}`;
+
+  if (isHeader) {
+    qrMeta.textContent = `Header QR · Encodes total count + filename\nShow this first to the decoder`;
+  } else {
+    const dataLen = qrChunks[idx].length;
+    qrMeta.textContent = `Data QR ${idx} of ${total - 1} · Payload: ${dataLen} bytes`;
+  }
+
+  btnPrev.disabled = idx === 0;
+  btnNext.disabled = idx === total - 1;
+  updateDots();
+
+  qrRender.innerHTML = '';
+  try {
+    new QRCode(qrRender, {
+      text: qrChunks[idx],
+      width: 260,
+      height: 260,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel[eccLevel.value] || QRCode.CorrectLevel.M
+    });
+  } catch (err) {
+    showError('QR generation failed: ' + err.message + '. Try reducing chunk size.');
+  }
+}
+
+btnPrev.addEventListener('click', () => { if (currentIdx > 0) showQR(currentIdx - 1); });
+btnNext.addEventListener('click', () => { if (currentIdx < qrChunks.length - 1) showQR(currentIdx + 1); });
+
+document.addEventListener('keydown', e => {
+  if (viewer.style.display === 'none') return;
+  if (e.key === 'ArrowLeft') btnPrev.click();
+  if (e.key === 'ArrowRight') btnNext.click();
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  selectedFile = null;
+  qrChunks = [];
+  currentIdx = 0;
+  visited.clear();
+  fileInput.value = '';
+  fileInfo.classList.remove('visible');
+  encodeBtn.disabled = true;
+  viewer.style.display = 'none';
+  uploadCard.style.display = 'block';
+  settingsCard.style.display = 'block';
+  encodeBtn.style.display = 'flex';
+  clearError();
+});
+</script>
+</body>
+</html>
