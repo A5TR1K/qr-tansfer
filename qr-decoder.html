@@ -31,9 +31,6 @@
     letter-spacing: 0.08em; color: var(--accent); margin-bottom: 1rem; }
   #landing { display: flex; flex-direction: column; align-items: center;
     gap: 1rem; width: 100%; max-width: 560px; }
-  .hero-text { text-align: center; }
-  .hero-text h2 { font-size: 1.2rem; font-weight: 500; margin-bottom: 0.4rem; }
-  .hero-text p { color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; }
   .btn { display: inline-flex; align-items: center; justify-content: center;
     gap: 0.5rem; padding: 0.7rem 1.5rem; border-radius: 8px; font-size: 1rem;
     font-weight: 500; cursor: pointer; border: none;
@@ -61,7 +58,7 @@
   .scan-frame span::before { bottom:0; left:0; border-width: 0 0 3px 3px; }
   .scan-frame span::after  { bottom:0; right:0; border-width: 0 3px 3px 0; }
   .scan-line { position: absolute; left: 6px; right: 6px; height: 2px;
-    background: var(--accent); opacity: 0.7;
+    background: var(--accent); opacity: 0.8;
     animation: scanline 2s ease-in-out infinite; }
   @keyframes scanline { 0%,100% { top: 6px; } 50% { top: 210px; } }
   .scan-status { position: absolute; bottom: 0; left: 0; right: 0;
@@ -72,8 +69,7 @@
   .scan-status.dup { color: var(--warn); }
   .scan-status.err { color: var(--danger); }
   .fps-badge { position: absolute; top: 8px; right: 10px; font-size: 0.68rem;
-    font-family: var(--mono); color: rgba(255,255,255,0.3); pointer-events: none; }
-  #canvas { display: none; }
+    font-family: var(--mono); color: rgba(255,255,255,0.35); pointer-events: none; }
   .cam-select-row { display: flex; align-items: center; gap: 0.75rem;
     margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-muted); }
   .cam-select-row select { flex: 1; }
@@ -130,15 +126,15 @@
 <header>
   <h1>⬡ QR File Decoder</h1>
   <p>Scan QR codes to reassemble any file</p>
-  <span class="version-badge">v1.4.0 · ZXing engine</span>
+  <span class="version-badge">v1.5.0 · ZXing engine</span>
 </header>
 
 <div id="landing">
   <div class="card" style="text-align:center; padding:2rem 1.5rem;">
     <div style="font-size:3.5rem;margin-bottom:0.75rem;">📷</div>
-    <div class="hero-text" style="margin-bottom:1.5rem;">
-      <h2>Scan QR codes to receive a file</h2>
-      <p>Start with the <strong>Header QR</strong>, then scan each numbered QR in any order. Duplicates are ignored automatically.</p>
+    <div style="text-align:center;margin-bottom:1.5rem;">
+      <h2 style="font-size:1.2rem;font-weight:500;margin-bottom:0.4rem;">Scan QR codes to receive a file</h2>
+      <p style="color:var(--text-muted);font-size:0.875rem;line-height:1.6;">Start with the <strong>Header QR</strong>, then scan each numbered QR in any order. Duplicates are ignored automatically.</p>
     </div>
     <div class="lib-status" id="lib-status">Loading scanner…</div>
     <button class="btn btn-primary" id="start-btn" disabled>Start Scanning</button>
@@ -161,7 +157,6 @@
     <div class="scan-status" id="scan-status">Waiting for QR code…</div>
     <div class="fps-badge" id="fps-badge"></div>
   </div>
-  <canvas id="canvas"></canvas>
 
   <div class="card" id="header-pending" style="text-align:center;color:var(--text-muted);">
     <div style="font-size:0.9rem;margin-bottom:0.5rem;">📋 Scan the <strong style="color:var(--accent)">Header QR</strong> first</div>
@@ -205,15 +200,11 @@
 
 <div class="error-toast" id="error-toast"></div>
 
-<!-- ZXing self-contained UMD — exposes window.ZXingBrowser -->
 <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
-
 <script>
 const startBtn    = document.getElementById('start-btn');
 const stopBtn     = document.getElementById('stop-btn');
 const video       = document.getElementById('video');
-const canvas      = document.getElementById('canvas');
-const ctx         = canvas.getContext('2d');
 const scanStatus  = document.getElementById('scan-status');
 const landing     = document.getElementById('landing');
 const scannerWrap = document.getElementById('scanner-wrap');
@@ -225,9 +216,11 @@ const errorToast  = document.getElementById('error-toast');
 const fpsBadge    = document.getElementById('fps-badge');
 const libStatus   = document.getElementById('lib-status');
 
-let codeReader = null;
-let stream = null;
-let animId = null;
+// scanControls is what ZXingBrowser.decodeFromVideoDevice() returns —
+// an object with a .stop() method. NOT the reader itself.
+let scanControls  = null;
+let codeReader    = null;
+
 let state = 'idle';
 let header = null;
 let dataChunks = {};
@@ -254,28 +247,30 @@ function showScanStatus(type, msg) {
   scanStatus.className = 'scan-status' + (type ? ' ' + type : '');
   scanStatus.textContent = msg;
 }
-
-// Wait for ZXing UMD globals then initialise
-function initZXing() {
-  // ZXingBrowser exposes BrowserMultiFormatReader; ZXing library has MultiFormatReader
-  if (typeof ZXingBrowser !== 'undefined' && ZXingBrowser.BrowserMultiFormatReader) {
-    try {
-      codeReader = new ZXingBrowser.BrowserMultiFormatReader();
-      libStatus.textContent = '✓ Scanner ready';
-      libStatus.style.color = 'var(--success)';
-      startBtn.disabled = false;
-    } catch(e) {
-      libStatus.textContent = '✗ Init error: ' + e.message;
-      libStatus.style.color = 'var(--danger)';
-    }
-  } else {
-    // fallback: use canvas + jsQR-style manual loop with ZXing library reader
-    libStatus.textContent = '✗ ZXing not loaded. Check your internet connection.';
-    libStatus.style.color = 'var(--danger)';
+function stopScanning() {
+  if (scanControls) {
+    try { scanControls.stop(); } catch(e) {}
+    scanControls = null;
   }
 }
 
-window.addEventListener('load', () => setTimeout(initZXing, 100));
+// Initialise once the ZXing UMD script has loaded
+window.addEventListener('load', () => {
+  if (typeof ZXingBrowser === 'undefined') {
+    libStatus.textContent = '✗ ZXingBrowser not found — check internet connection';
+    libStatus.style.color = 'var(--danger)';
+    return;
+  }
+  try {
+    codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+    libStatus.textContent = '✓ Scanner ready';
+    libStatus.style.color = 'var(--success)';
+    startBtn.disabled = false;
+  } catch(e) {
+    libStatus.textContent = '✗ Init error: ' + e.message;
+    libStatus.style.color = 'var(--danger)';
+  }
+});
 
 async function populateCameras() {
   try {
@@ -283,8 +278,7 @@ async function populateCameras() {
     camSelect.innerHTML = '';
     if (!devices || devices.length === 0) {
       const opt = document.createElement('option');
-      opt.textContent = 'Default camera';
-      opt.value = '';
+      opt.value = ''; opt.textContent = 'Default camera';
       camSelect.appendChild(opt);
       return;
     }
@@ -295,35 +289,44 @@ async function populateCameras() {
       camSelect.appendChild(opt);
     });
     // prefer back/environment camera on mobile
-    const backIdx = Array.from(camSelect.options).findIndex(o =>
-      /back|rear|environment/i.test(o.textContent));
+    const backIdx = Array.from(camSelect.options)
+      .findIndex(o => /back|rear|environment/i.test(o.textContent));
     if (backIdx >= 0) camSelect.selectedIndex = backIdx;
   } catch(e) {
-    console.warn('Could not list cameras:', e);
+    console.warn('listVideoInputDevices failed:', e);
     const opt = document.createElement('option');
     opt.value = ''; opt.textContent = 'Default camera';
     camSelect.appendChild(opt);
   }
 }
 
-function startDecoding(deviceId) {
-  if (!codeReader) return;
-  codeReader.reset();
-  const selectedId = deviceId || undefined;
-  codeReader.decodeFromVideoDevice(selectedId, video, (result, err) => {
-    // tick FPS counter
-    frameCount++;
-    const now = Date.now();
-    if (now - lastFpsTs >= 1000) {
-      fpsBadge.textContent = frameCount + ' fps';
-      frameCount = 0;
-      lastFpsTs = now;
-    }
-    if (result) {
-      handleQRCode(result.getText());
-    }
-    // err is NotFoundException on frames with no QR — that's normal, ignore it
-  });
+async function startDecoding(deviceId) {
+  if (!codeReader) { showToast('Scanner not initialised'); return; }
+  stopScanning(); // stop any previous scan
+
+  try {
+    // decodeFromVideoDevice returns a Promise<IScannerControls>
+    // The callback fires on every frame — result is null when no QR found
+    scanControls = await codeReader.decodeFromVideoDevice(
+      deviceId || undefined,
+      video,
+      (result, err) => {
+        // tick fps counter
+        frameCount++;
+        const now = Date.now();
+        if (now - lastFpsTs >= 1000) {
+          fpsBadge.textContent = frameCount + ' fps';
+          frameCount = 0;
+          lastFpsTs = now;
+        }
+        if (result) handleQRCode(result.getText());
+        // err is NotFoundException on empty frames — normal, ignore
+      }
+    );
+  } catch(e) {
+    showToast('Camera error: ' + e.message);
+    console.error('decodeFromVideoDevice error:', e);
+  }
 }
 
 camSelect.addEventListener('change', () => {
@@ -332,12 +335,22 @@ camSelect.addEventListener('change', () => {
 
 startBtn.addEventListener('click', async () => {
   if (!codeReader) { showToast('Scanner not ready yet, please wait'); return; }
+
+  // Explicitly request camera permission first so the browser prompt appears
+  try {
+    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    tempStream.getTracks().forEach(t => t.stop());
+  } catch(e) {
+    showToast('Camera permission denied: ' + e.message);
+    return;
+  }
+
   landing.style.display = 'none';
   scannerWrap.style.display = 'block';
   state = 'waiting_header';
   resetState();
   await populateCameras();
-  startDecoding(camSelect.value);
+  await startDecoding(camSelect.value);
 });
 
 function resetState() {
@@ -422,7 +435,7 @@ function updateProgress() {
 }
 
 function assembleFile() {
-  if (codeReader) codeReader.reset();
+  stopScanning();
   const b64 = Array.from({length: totalData}, (_, i) => dataChunks[i]).join('');
   const bin = atob(b64);
   const arr = new Uint8Array(bin.length);
@@ -448,7 +461,7 @@ document.getElementById('scan-again-btn').addEventListener('click', () => {
 });
 
 stopBtn.addEventListener('click', () => {
-  if (codeReader) codeReader.reset();
+  stopScanning();
   state = 'idle';
   scannerWrap.style.display = 'none';
   landing.style.display = 'flex';
