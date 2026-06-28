@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>QR File Decoder</title>
 <style>
   :root {
@@ -16,23 +16,22 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--font);
-    min-height: 100vh; display: flex; flex-direction: column;
-    align-items: center; padding: 2rem 1rem 4rem; }
-  header { text-align: center; margin-bottom: 2rem; }
+    min-height: 100vh; min-height: 100dvh; }
+
+  /* ── Landing ── */
+  #landing { display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh; min-height: 100dvh;
+    padding: 2rem 1rem; gap: 1.25rem; }
+  #landing header { text-align: center; }
   header h1 { font-size: 1.7rem; font-weight: 600; letter-spacing: -0.02em; color: var(--accent); }
   header p { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem; }
   .version-badge { display: inline-block; margin-top: 0.5rem; font-size: 0.7rem;
     font-family: var(--mono); background: var(--surface2); border: 1px solid var(--border);
     color: var(--text-muted); padding: 2px 10px; border-radius: 20px; }
   .card { background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 1.5rem;
-    width: 100%; max-width: 560px; margin-bottom: 1.25rem; }
-  .card-title { font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.08em; color: var(--accent); margin-bottom: 1rem; }
-  #landing { display: flex; flex-direction: column; align-items: center;
-    gap: 1rem; width: 100%; max-width: 560px; }
+    border-radius: var(--radius); padding: 1.5rem; width: 100%; max-width: 480px; }
   .btn { display: inline-flex; align-items: center; justify-content: center;
-    gap: 0.5rem; padding: 0.7rem 1.5rem; border-radius: 8px; font-size: 1rem;
+    gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 8px; font-size: 1rem;
     font-weight: 500; cursor: pointer; border: none;
     transition: opacity 0.15s, transform 0.1s; width: 100%; }
   .btn:active { transform: scale(0.97); }
@@ -42,113 +41,168 @@
   .btn-secondary { background: transparent; border: 1px solid var(--border);
     color: var(--text-muted); font-size: 0.9rem; }
   .btn-secondary:hover { border-color: var(--text-muted); color: var(--text); }
-  #scanner-wrap { display: none; width: 100%; max-width: 560px; }
-  .cam-box { position: relative; background: #000; border-radius: var(--radius);
-    overflow: hidden; border: 1px solid var(--border); margin-bottom: 1.25rem; }
-  #video { width: 100%; display: block; max-height: 380px; object-fit: cover; }
+  .lib-status { font-size: 0.75rem; color: var(--text-muted);
+    text-align: center; margin-bottom: 0.75rem; font-family: var(--mono); }
+
+  /* ── Scanner: full-screen fixed layout, no scroll ── */
+  #scanner-wrap {
+    display: none;
+    position: fixed; inset: 0;
+    flex-direction: column;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  /* Top bar */
+  .scan-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 1rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 0.75rem;
+  }
+  .scan-topbar-title { font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+  .cam-select-mini { background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); padding: 0.3rem 0.5rem;
+    font-size: 0.75rem; font-family: var(--font); max-width: 140px; }
+  .cam-select-mini:focus { outline: none; border-color: var(--accent); }
+  .btn-cancel { background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 6px; padding: 0.3rem 0.75rem;
+    font-size: 0.78rem; cursor: pointer; white-space: nowrap; }
+  .btn-cancel:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Camera view — fixed height so progress always fits below */
+  .cam-box {
+    position: relative; background: #000;
+    flex-shrink: 0;
+    height: 42vh; height: 42dvh;
+    overflow: hidden;
+  }
+  #video { width: 100%; height: 100%; object-fit: cover; display: block; }
   #scan-overlay { position: absolute; inset: 0; display: flex;
     align-items: center; justify-content: center; pointer-events: none; }
-  .scan-frame { width: 220px; height: 220px; position: relative; }
+  .scan-frame { width: 180px; height: 180px; position: relative; }
   .scan-frame::before, .scan-frame::after,
   .scan-frame span::before, .scan-frame span::after {
-    content: ''; position: absolute; width: 32px; height: 32px;
+    content: ''; position: absolute; width: 28px; height: 28px;
     border-color: var(--accent); border-style: solid; }
   .scan-frame::before { top:0; left:0; border-width: 3px 0 0 3px; }
   .scan-frame::after  { top:0; right:0; border-width: 3px 3px 0 0; }
   .scan-frame span::before { bottom:0; left:0; border-width: 0 0 3px 3px; }
   .scan-frame span::after  { bottom:0; right:0; border-width: 0 3px 3px 0; }
-  .scan-line { position: absolute; left: 6px; right: 6px; height: 2px;
-    background: var(--accent); opacity: 0.8;
+  .scan-line { position: absolute; left: 4px; right: 4px; height: 2px;
+    background: var(--accent); opacity: 0.85;
     animation: scanline 2s ease-in-out infinite; }
-  @keyframes scanline { 0%,100% { top: 6px; } 50% { top: 210px; } }
+  @keyframes scanline { 0%,100% { top: 4px; } 50% { top: 172px; } }
   .scan-status { position: absolute; bottom: 0; left: 0; right: 0;
-    padding: 0.5rem 1rem; background: rgba(13,17,23,0.85);
-    font-size: 0.8rem; color: var(--text-muted);
+    padding: 0.4rem 1rem; background: rgba(13,17,23,0.88);
+    font-size: 0.78rem; color: var(--text-muted);
     text-align: center; font-family: var(--mono); }
   .scan-status.ok  { color: var(--success); }
   .scan-status.dup { color: var(--warn); }
   .scan-status.err { color: var(--danger); }
-  .fps-badge { position: absolute; top: 8px; right: 10px; font-size: 0.68rem;
-    font-family: var(--mono); color: rgba(255,255,255,0.35); pointer-events: none; }
-  .cam-select-row { display: flex; align-items: center; gap: 0.75rem;
-    margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-muted); }
-  .cam-select-row select { flex: 1; }
-  select { background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; color: var(--text); padding: 0.4rem 0.7rem;
-    font-size: 0.85rem; font-family: var(--font); }
-  select:focus { outline: none; border-color: var(--accent); }
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr;
-    gap: 0.75rem; margin-bottom: 1.25rem; }
+  .fps-badge { position: absolute; top: 6px; right: 8px; font-size: 0.65rem;
+    font-family: var(--mono); color: rgba(255,255,255,0.3); pointer-events: none; }
+
+  /* Progress panel — fills remaining space, scrollable only internally if chips overflow */
+  .progress-panel {
+    flex: 1; overflow-y: auto; padding: 0.75rem 1rem;
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+
+  /* Header-pending state */
+  .hint-box { background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 0.75rem 1rem;
+    text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+  .hint-box strong { color: var(--accent); }
+
+  /* Compact file info + stats in one row */
+  .info-stats-row { display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0.5rem; }
   .stat-box { background: var(--surface2); border-radius: 8px;
-    padding: 0.75rem 1rem; border: 1px solid var(--border); }
-  .stat-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; }
-  .stat-val { font-size: 1.2rem; font-weight: 600; font-family: var(--mono); color: var(--accent); }
-  .progress-section { margin-bottom: 1.25rem; }
+    padding: 0.5rem 0.75rem; border: 1px solid var(--border); }
+  .stat-label { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 0.15rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-val { font-size: 1.1rem; font-weight: 700; font-family: var(--mono); color: var(--accent); }
+  .stat-sub { font-size: 0.68rem; color: var(--text-muted); font-family: var(--mono);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Progress bar */
   .progress-bar-bg { background: var(--surface2); border-radius: 100px;
-    height: 8px; overflow: hidden; margin-bottom: 0.5rem; border: 1px solid var(--border); }
+    height: 7px; overflow: hidden; border: 1px solid var(--border); }
   .progress-bar-fill { height: 100%; background: var(--accent);
     border-radius: 100px; transition: width 0.3s ease; width: 0%; }
-  .progress-label { font-size: 0.8rem; color: var(--text-muted);
-    display: flex; justify-content: space-between; }
-  .remaining-section { margin-bottom: 1.25rem; }
-  .remaining-title { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-  .chips-wrap { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-  .chip { font-family: var(--mono); font-size: 0.72rem; padding: 3px 9px;
+  .progress-row { display: flex; justify-content: space-between;
+    font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+  /* QR chips */
+  .chips-label { font-size: 0.72rem; color: var(--text-muted); }
+  .chips-wrap { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .chip { font-family: var(--mono); font-size: 0.68rem; padding: 2px 8px;
     border-radius: 20px; border: 1px solid var(--border);
     color: var(--text-muted); background: var(--surface2); }
   .chip.done { border-color: var(--success); color: var(--success); background: var(--success-dim); }
-  .info-row { font-size: 0.82rem; color: var(--text-muted);
-    margin-bottom: 0.4rem; font-family: var(--mono); }
-  .info-row span { color: var(--text); }
-  #complete-wrap { display: none; width: 100%; max-width: 560px; }
+
+  /* ── Complete ── */
+  #complete-wrap { display: none; position: fixed; inset: 0;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg); padding: 2rem 1rem; gap: 1rem; }
   .complete-box { background: var(--success-dim); border: 1px solid var(--success);
     border-radius: var(--radius); padding: 2rem 1.5rem;
-    text-align: center; margin-bottom: 1.25rem; }
+    text-align: center; width: 100%; max-width: 480px; }
   .complete-box .big-check { font-size: 3rem; margin-bottom: 0.75rem; }
   .complete-box h2 { font-size: 1.2rem; font-weight: 600; color: var(--success); margin-bottom: 0.4rem; }
   .complete-box p { font-size: 0.875rem; color: var(--text-muted); }
   .complete-box .file-name { color: var(--accent); font-family: var(--mono);
-    font-size: 0.85rem; margin-top: 0.5rem; word-break: break-all; }
-  .btn-download { background: var(--success); color: #000; margin-bottom: 0.75rem; }
+    font-size: 0.82rem; margin-top: 0.5rem; word-break: break-all; }
+  .btn-download { background: var(--success); color: #000; max-width: 480px; }
   .btn-download:hover { opacity: 0.88; }
+  .btn-again { max-width: 480px; background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 8px; padding: 0.65rem 1.5rem;
+    font-size: 0.9rem; cursor: pointer; width: 100%; }
+  .btn-again:hover { border-color: var(--text-muted); color: var(--text); }
+
+  /* Toast */
   .error-toast { position: fixed; bottom: 1.5rem; left: 50%;
     transform: translateX(-50%) translateY(80px);
     background: rgba(248,81,73,0.92); color: #fff;
     padding: 0.65rem 1.25rem; border-radius: 8px; font-size: 0.85rem;
-    transition: transform 0.25s ease; z-index: 100; white-space: nowrap; }
+    transition: transform 0.25s ease; z-index: 200; white-space: nowrap; }
   .error-toast.show { transform: translateX(-50%) translateY(0); }
-  .lib-status { font-size: 0.75rem; color: var(--text-muted);
-    text-align: center; margin-bottom: 0.75rem; font-family: var(--mono); }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>⬡ QR File Decoder</h1>
-  <p>Scan QR codes to reassemble any file</p>
-  <span class="version-badge">v1.7.0</span>
-</header>
-
+<!-- ── Landing ── -->
 <div id="landing">
+  <header>
+    <h1>⬡ QR File Decoder</h1>
+    <p>Scan QR codes to reassemble any file</p>
+    <span class="version-badge">v1.4.0</span>
+  </header>
   <div class="card" style="text-align:center; padding:2rem 1.5rem;">
-    <div style="font-size:3.5rem;margin-bottom:0.75rem;">📷</div>
-    <div style="text-align:center;margin-bottom:1.5rem;">
-      <h2 style="font-size:1.2rem;font-weight:500;margin-bottom:0.4rem;">Scan QR codes to receive a file</h2>
-      <p style="color:var(--text-muted);font-size:0.875rem;line-height:1.6;">Start with the <strong>Header QR</strong>, then scan each numbered QR in any order. Duplicates are ignored automatically.</p>
+    <div style="font-size:3rem;margin-bottom:0.75rem;">📷</div>
+    <div style="margin-bottom:1.25rem;">
+      <h2 style="font-size:1.1rem;font-weight:500;margin-bottom:0.4rem;">Scan QR codes to receive a file</h2>
+      <p style="color:var(--text-muted);font-size:0.85rem;line-height:1.6;">Start with the <strong>Header QR</strong>, then scan each numbered QR in any order. Duplicates are ignored.</p>
     </div>
     <div class="lib-status" id="lib-status">Loading scanner…</div>
     <button class="btn btn-primary" id="start-btn" disabled>Start Scanning</button>
   </div>
-  <p style="font-size:0.78rem;color:var(--text-muted);text-align:center;max-width:360px;line-height:1.5;">
-    Camera permission will be requested when you start. Hold each QR code steady within the frame — scanning is automatic.
+  <p style="font-size:0.75rem;color:var(--text-muted);text-align:center;max-width:340px;line-height:1.5;">
+    Camera permission will be requested. Works best on HTTPS (e.g. GitHub Pages).
   </p>
 </div>
 
+<!-- ── Scanner (full-screen, fixed) ── -->
 <div id="scanner-wrap">
-  <div class="cam-select-row">
-    <span>Camera</span>
-    <select id="cam-select"></select>
+
+  <div class="scan-topbar">
+    <span class="scan-topbar-title">⬡ Scanning…</span>
+    <select id="cam-select" class="cam-select-mini"></select>
+    <button class="btn-cancel" id="stop-btn">✕ Cancel</button>
   </div>
+
   <div class="cam-box">
     <video id="video" autoplay playsinline muted></video>
     <div id="scan-overlay">
@@ -158,45 +212,57 @@
     <div class="fps-badge" id="fps-badge"></div>
   </div>
 
-  <div class="card" id="header-pending" style="text-align:center;color:var(--text-muted);">
-    <div style="font-size:0.9rem;margin-bottom:0.5rem;">📋 Scan the <strong style="color:var(--accent)">Header QR</strong> first</div>
-    <div style="font-size:0.8rem;">It tells the decoder how many QR codes to expect</div>
-  </div>
+  <div class="progress-panel">
 
-  <div class="card" id="scan-info" style="display:none;">
-    <div class="card-title">Progress</div>
-    <div class="info-row">File: <span id="info-name">—</span></div>
-    <div class="info-row">Size: <span id="info-size">—</span></div>
-    <div class="stats-grid" style="margin-top:1rem;">
-      <div class="stat-box"><div class="stat-label">Scanned</div><div class="stat-val" id="stat-scanned">0</div></div>
-      <div class="stat-box"><div class="stat-label">Remaining</div><div class="stat-val" id="stat-remaining">—</div></div>
+    <!-- Before header QR is scanned -->
+    <div class="hint-box" id="header-pending">
+      📋 Scan the <strong>Header QR</strong> first
     </div>
-    <div class="progress-section">
-      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
-      <div class="progress-label">
-        <span id="prog-label-left">0 of 0 data QRs</span>
-        <span id="prog-label-right">0%</span>
+
+    <!-- After header scanned -->
+    <div id="scan-info" style="display:none; display:none; flex-direction:column; gap:0.6rem;">
+
+      <div class="info-stats-row">
+        <div class="stat-box">
+          <div class="stat-label">Scanned</div>
+          <div class="stat-val" id="stat-scanned">0</div>
+          <div class="stat-sub" id="info-size">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Remaining</div>
+          <div class="stat-val" id="stat-remaining">—</div>
+          <div class="stat-sub" id="info-name" style="color:var(--accent);">—</div>
+        </div>
       </div>
-    </div>
-    <div class="remaining-section" id="remaining-section">
-      <div class="remaining-title">QR codes still needed:</div>
-      <div class="chips-wrap" id="chips-wrap"></div>
+
+      <div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+        <div class="progress-row">
+          <span id="prog-label-left">0 of 0 data QRs</span>
+          <span id="prog-label-right">0%</span>
+        </div>
+      </div>
+
+      <div id="remaining-section" style="display:none;">
+        <div class="chips-label" style="margin-bottom:0.35rem;">Still needed:</div>
+        <div class="chips-wrap" id="chips-wrap"></div>
+      </div>
+
     </div>
   </div>
-
-  <button class="btn btn-secondary" id="stop-btn" style="margin-top:0.25rem;">✕ Cancel scan</button>
 </div>
 
+<!-- ── Complete ── -->
 <div id="complete-wrap">
   <div class="complete-box">
     <div class="big-check">✅</div>
     <h2>File reassembled</h2>
     <p>All QR codes scanned successfully.</p>
     <div class="file-name" id="done-filename"></div>
-    <div id="done-hash" style="margin-top:0.75rem;font-size:0.72rem;font-family:var(--mono);color:var(--text-muted);word-break:break-all;"></div>
+    <div id="done-hash" style="margin-top:0.75rem;font-size:0.7rem;font-family:var(--mono);color:var(--text-muted);word-break:break-all;"></div>
   </div>
   <button class="btn btn-download" id="download-btn">⬇ Download file</button>
-  <button class="btn btn-secondary" id="scan-again-btn">Scan another file</button>
+  <button class="btn-again" id="scan-again-btn">Scan another file</button>
 </div>
 
 <div class="error-toast" id="error-toast"></div>
@@ -217,11 +283,8 @@ const errorToast  = document.getElementById('error-toast');
 const fpsBadge    = document.getElementById('fps-badge');
 const libStatus   = document.getElementById('lib-status');
 
-// scanControls is what ZXingBrowser.decodeFromVideoDevice() returns —
-// an object with a .stop() method. NOT the reader itself.
-let scanControls  = null;
-let codeReader    = null;
-
+let scanControls = null;
+let codeReader   = null;
 let state = 'idle';
 let header = null;
 let dataChunks = {};
@@ -236,8 +299,8 @@ const DEBOUNCE_MS = 1500;
 
 function fmtSize(b) {
   if (b < 1024) return b + ' B';
-  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
-  return (b / 1048576).toFixed(2) + ' MB';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
 }
 function showToast(msg, dur) {
   errorToast.textContent = msg;
@@ -249,18 +312,13 @@ function showScanStatus(type, msg) {
   scanStatus.textContent = msg;
 }
 function stopScanning() {
-  if (scanControls) {
-    try { scanControls.stop(); } catch(e) {}
-    scanControls = null;
-  }
+  if (scanControls) { try { scanControls.stop(); } catch(e) {} scanControls = null; }
 }
 
-// Initialise once the ZXing UMD script has loaded
 window.addEventListener('load', () => {
   if (typeof ZXingBrowser === 'undefined') {
     libStatus.textContent = '✗ ZXingBrowser not found — check internet connection';
-    libStatus.style.color = 'var(--danger)';
-    return;
+    libStatus.style.color = 'var(--danger)'; return;
   }
   try {
     codeReader = new ZXingBrowser.BrowserMultiFormatReader();
@@ -277,59 +335,43 @@ async function populateCameras() {
   try {
     const devices = await ZXingBrowser.BrowserMultiFormatReader.listVideoInputDevices();
     if (!devices || devices.length === 0) return;
-
     const currentVal = camSelect.value;
     camSelect.innerHTML = '';
     devices.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
-      opt.textContent = d.label || ('Camera ' + (i + 1));
+      opt.textContent = d.label || ('Camera ' + (i+1));
       camSelect.appendChild(opt);
     });
-
-    // Restore previous selection if still valid
     if (currentVal && Array.from(camSelect.options).some(o => o.value === currentVal)) {
       camSelect.value = currentVal;
     } else {
-      // prefer back/environment camera on mobile
       const backIdx = Array.from(camSelect.options)
         .findIndex(o => /back|rear|environment/i.test(o.textContent));
       if (backIdx >= 0) camSelect.selectedIndex = backIdx;
     }
-  } catch(e) {
-    console.warn('listVideoInputDevices failed:', e);
-  }
+  } catch(e) { console.warn('listVideoInputDevices failed:', e); }
 }
 
 async function startDecoding(deviceId) {
-  if (!codeReader) { showToast('Scanner not initialised'); return; }
+  if (!codeReader) return;
   stopScanning();
-
-  // Pass undefined (not empty string) to let ZXing pick the default camera
   const id = (deviceId && deviceId.trim() !== '') ? deviceId : undefined;
-
   try {
-    scanControls = await codeReader.decodeFromVideoDevice(
-      id,
-      video,
-      (result, err) => {
-        frameCount++;
-        const now = Date.now();
-        if (now - lastFpsTs >= 1000) {
-          fpsBadge.textContent = frameCount + ' fps';
-          frameCount = 0;
-          lastFpsTs = now;
-        }
-        if (result) handleQRCode(result.getText());
+    scanControls = await codeReader.decodeFromVideoDevice(id, video, (result) => {
+      frameCount++;
+      const now = Date.now();
+      if (now - lastFpsTs >= 1000) {
+        fpsBadge.textContent = frameCount + ' fps';
+        frameCount = 0; lastFpsTs = now;
       }
-    );
-    // After ZXing has opened the camera, re-populate the dropdown with
-    // proper labels (they're only available after permission is granted)
+      if (result) handleQRCode(result.getText());
+    });
     await populateCameras();
   } catch(e) {
     showScanStatus('err', 'Camera error: ' + e.message);
     showToast('Camera error: ' + e.message);
-    console.error('decodeFromVideoDevice error:', e);
+    console.error(e);
   }
 }
 
@@ -338,29 +380,21 @@ camSelect.addEventListener('change', () => {
 });
 
 startBtn.addEventListener('click', async () => {
-  if (!codeReader) { showToast('Scanner not ready yet, please wait'); return; }
-
-  // Must call getUserMedia directly inside a user-gesture handler
-  // so the browser shows the permission prompt. We keep the stream
-  // open (don't stop it) so ZXing can reuse it.
+  if (!codeReader) { showToast('Scanner not ready yet'); return; }
   let permStream;
   try {
     permStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' } }
     });
   } catch(e) {
-    showToast('Camera permission denied: ' + e.message);
-    console.error('getUserMedia error:', e);
-    return;
+    showToast('Camera permission denied: ' + e.message); return;
   }
-  // Stop the permission stream — ZXing will open its own
   permStream.getTracks().forEach(t => t.stop());
 
   landing.style.display = 'none';
-  scannerWrap.style.display = 'block';
+  scannerWrap.style.display = 'flex';
   state = 'waiting_header';
   resetState();
-
   await populateCameras();
   await startDecoding(camSelect.value);
 });
@@ -376,7 +410,6 @@ function resetState() {
 function handleQRCode(raw) {
   const now = Date.now();
   if (raw === lastScannedCode && now - lastScannedTime < DEBOUNCE_MS) return;
-
   let parsed;
   try { parsed = JSON.parse(raw); } catch { return; }
   if (!parsed || parsed.v !== 1) return;
@@ -389,9 +422,9 @@ function handleQRCode(raw) {
     header = parsed; totalData = parsed.total;
     dataChunks = {}; scannedCount = 0;
     lastScannedCode = raw; lastScannedTime = now;
-    showScanStatus('ok', '✓ Header scanned · ' + totalData + ' data QR' + (totalData !== 1 ? 's' : '') + ' expected');
+    showScanStatus('ok', '✓ Header — ' + totalData + ' QR' + (totalData !== 1 ? 's' : '') + ' expected');
     headerPend.style.display = 'none';
-    scanInfo.style.display = 'block';
+    scanInfo.style.display = 'flex';
     document.getElementById('info-name').textContent = header.name;
     document.getElementById('info-size').textContent = fmtSize(header.size);
     updateProgress();
@@ -400,29 +433,19 @@ function handleQRCode(raw) {
   }
 
   if (parsed.type === 'QRF_DATA') {
-    if (state !== 'scanning_data') {
-      showScanStatus('err', 'Scan the Header QR first');
-      return;
-    }
-    if (parsed.total !== totalData) {
-      showToast('QR is from a different file set — ignoring.');
-      return;
-    }
+    if (state !== 'scanning_data') { showScanStatus('err', 'Scan Header QR first'); return; }
+    if (parsed.total !== totalData) { showToast('Different file set — ignoring.'); return; }
     const idx = parsed.idx;
     if (dataChunks[idx] !== undefined) {
       lastScannedCode = raw; lastScannedTime = now;
-      showScanStatus('dup', '⟳ QR ' + (idx + 1) + ' already scanned');
-      return;
+      showScanStatus('dup', '⟳ QR ' + (idx+1) + ' already scanned'); return;
     }
     dataChunks[idx] = parsed.data;
     scannedCount++;
     lastScannedCode = raw; lastScannedTime = now;
-    showScanStatus('ok', '✓ QR ' + (idx + 1) + ' / ' + totalData + ' scanned');
+    showScanStatus('ok', '✓ QR ' + (idx+1) + ' / ' + totalData + ' scanned');
     updateProgress();
-    if (scannedCount === totalData) {
-      state = 'complete';
-      setTimeout(assembleFile, 400);
-    }
+    if (scannedCount === totalData) { state = 'complete'; setTimeout(assembleFile, 400); }
   }
 }
 
@@ -432,14 +455,14 @@ function updateProgress() {
   document.getElementById('stat-scanned').textContent = scannedCount;
   document.getElementById('stat-remaining').textContent = totalData - scannedCount;
   document.getElementById('progress-fill').style.width = pct + '%';
-  document.getElementById('prog-label-left').textContent = scannedCount + ' of ' + totalData + ' data QRs';
+  document.getElementById('prog-label-left').textContent = scannedCount + ' of ' + totalData + ' QRs';
   document.getElementById('prog-label-right').textContent = pct + '%';
   const chips = document.getElementById('chips-wrap');
   chips.innerHTML = '';
   for (let i = 0; i < totalData; i++) {
     const chip = document.createElement('div');
     chip.className = 'chip' + (dataChunks[i] !== undefined ? ' done' : '');
-    chip.textContent = 'QR ' + (i + 1);
+    chip.textContent = i + 1;
     chips.appendChild(chip);
   }
   document.getElementById('remaining-section').style.display =
@@ -454,10 +477,8 @@ function assembleFile() {
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   reassembledBlob = new Blob([arr]);
   scannerWrap.style.display = 'none';
-  completeWrap.style.display = 'block';
+  completeWrap.style.display = 'flex';
   document.getElementById('done-filename').textContent = header.name;
-
-  // Compute SHA-256 of the reassembled file
   crypto.subtle.digest('SHA-256', arr.buffer).then(hashBuffer => {
     const hex = Array.from(new Uint8Array(hashBuffer))
       .map(b => b.toString(16).padStart(2, '0')).join('');
@@ -480,8 +501,7 @@ document.getElementById('scan-again-btn').addEventListener('click', () => {
 });
 
 stopBtn.addEventListener('click', () => {
-  stopScanning();
-  state = 'idle';
+  stopScanning(); state = 'idle';
   scannerWrap.style.display = 'none';
   landing.style.display = 'flex';
   resetState();
