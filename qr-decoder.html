@@ -126,7 +126,7 @@
 <header>
   <h1>⬡ QR File Decoder</h1>
   <p>Scan QR codes to reassemble any file</p>
-  <span class="version-badge">v1.7.0 · ZXing engine</span>
+  <span class="version-badge">v1.7.0</span>
 </header>
 
 <div id="landing">
@@ -193,6 +193,7 @@
     <h2>File reassembled</h2>
     <p>All QR codes scanned successfully.</p>
     <div class="file-name" id="done-filename"></div>
+    <div id="done-hash" style="margin-top:0.75rem;font-size:0.72rem;font-family:var(--mono);color:var(--text-muted);word-break:break-all;"></div>
   </div>
   <button class="btn btn-download" id="download-btn">⬇ Download file</button>
   <button class="btn btn-secondary" id="scan-again-btn">Scan another file</button>
@@ -455,6 +456,13 @@ function assembleFile() {
   scannerWrap.style.display = 'none';
   completeWrap.style.display = 'block';
   document.getElementById('done-filename').textContent = header.name;
+
+  // Compute SHA-256 of the reassembled file
+  crypto.subtle.digest('SHA-256', arr.buffer).then(hashBuffer => {
+    const hex = Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    document.getElementById('done-hash').textContent = 'SHA-256 ' + hex;
+  });
 }
 
 document.getElementById('download-btn').addEventListener('click', () => {
