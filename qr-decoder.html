@@ -126,7 +126,7 @@
 <header>
   <h1>⬡ QR File Decoder</h1>
   <p>Scan QR codes to reassemble any file</p>
-  <span class="version-badge">v1.6.0 · ZXing engine</span>
+  <span class="version-badge">v1.7.0 · ZXing engine</span>
 </header>
 
 <div id="landing">
@@ -339,15 +339,27 @@ camSelect.addEventListener('change', () => {
 startBtn.addEventListener('click', async () => {
   if (!codeReader) { showToast('Scanner not ready yet, please wait'); return; }
 
+  // Must call getUserMedia directly inside a user-gesture handler
+  // so the browser shows the permission prompt. We keep the stream
+  // open (don't stop it) so ZXing can reuse it.
+  let permStream;
+  try {
+    permStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } }
+    });
+  } catch(e) {
+    showToast('Camera permission denied: ' + e.message);
+    console.error('getUserMedia error:', e);
+    return;
+  }
+  // Stop the permission stream — ZXing will open its own
+  permStream.getTracks().forEach(t => t.stop());
+
   landing.style.display = 'none';
   scannerWrap.style.display = 'block';
   state = 'waiting_header';
   resetState();
 
-  // Populate camera list — enumerateDevices works before permission on most
-  // browsers but labels will be empty until after permission is granted.
-  // We let ZXing's decodeFromVideoDevice trigger the actual permission prompt
-  // naturally when it calls getUserMedia internally.
   await populateCameras();
   await startDecoding(camSelect.value);
 });
