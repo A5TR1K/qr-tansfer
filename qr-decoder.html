@@ -178,7 +178,7 @@
   <header>
     <h1>⬡ QR File Decoder</h1>
     <p>Scan QR codes to reassemble any file</p>
-    <span class="version-badge">v1.4.0</span>
+    <span class="version-badge">v1.5.0</span>
   </header>
   <div class="card" style="text-align:center; padding:2rem 1.5rem;">
     <div style="font-size:3rem;margin-bottom:0.75rem;">📷</div>
@@ -479,10 +479,25 @@ function assembleFile() {
   scannerWrap.style.display = 'none';
   completeWrap.style.display = 'flex';
   document.getElementById('done-filename').textContent = header.name;
+
+  const hashEl = document.getElementById('done-hash');
   crypto.subtle.digest('SHA-256', arr.buffer).then(hashBuffer => {
     const hex = Array.from(new Uint8Array(hashBuffer))
       .map(b => b.toString(16).padStart(2, '0')).join('');
-    document.getElementById('done-hash').textContent = 'SHA-256 ' + hex;
+    if (header.sha256) {
+      if (hex === header.sha256) {
+        hashEl.innerHTML =
+          '<span style="color:var(--success)">✓ Hash verified</span><br>' +
+          '<span style="opacity:0.6">SHA-256 ' + hex + '</span>';
+      } else {
+        hashEl.innerHTML =
+          '<span style="color:var(--danger)">✗ Hash mismatch — file may be corrupt</span><br>' +
+          '<span style="opacity:0.6">Expected: ' + header.sha256 + '</span><br>' +
+          '<span style="opacity:0.6">Got:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + hex + '</span>';
+      }
+    } else {
+      hashEl.textContent = 'SHA-256 ' + hex;
+    }
   });
 }
 
