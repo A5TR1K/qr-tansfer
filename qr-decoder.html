@@ -126,7 +126,7 @@
 <header>
   <h1>⬡ QR File Decoder</h1>
   <p>Scan QR codes to reassemble any file</p>
-  <span class="version-badge">v1.5.0 · ZXing engine</span>
+  <span class="version-badge">v1.6.0 · ZXing engine</span>
 </header>
 
 <div id="landing">
@@ -275,43 +275,43 @@ window.addEventListener('load', () => {
 async function populateCameras() {
   try {
     const devices = await ZXingBrowser.BrowserMultiFormatReader.listVideoInputDevices();
+    if (!devices || devices.length === 0) return;
+
+    const currentVal = camSelect.value;
     camSelect.innerHTML = '';
-    if (!devices || devices.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = ''; opt.textContent = 'Default camera';
-      camSelect.appendChild(opt);
-      return;
-    }
     devices.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
       opt.textContent = d.label || ('Camera ' + (i + 1));
       camSelect.appendChild(opt);
     });
-    // prefer back/environment camera on mobile
-    const backIdx = Array.from(camSelect.options)
-      .findIndex(o => /back|rear|environment/i.test(o.textContent));
-    if (backIdx >= 0) camSelect.selectedIndex = backIdx;
+
+    // Restore previous selection if still valid
+    if (currentVal && Array.from(camSelect.options).some(o => o.value === currentVal)) {
+      camSelect.value = currentVal;
+    } else {
+      // prefer back/environment camera on mobile
+      const backIdx = Array.from(camSelect.options)
+        .findIndex(o => /back|rear|environment/i.test(o.textContent));
+      if (backIdx >= 0) camSelect.selectedIndex = backIdx;
+    }
   } catch(e) {
     console.warn('listVideoInputDevices failed:', e);
-    const opt = document.createElement('option');
-    opt.value = ''; opt.textContent = 'Default camera';
-    camSelect.appendChild(opt);
   }
 }
 
 async function startDecoding(deviceId) {
   if (!codeReader) { showToast('Scanner not initialised'); return; }
-  stopScanning(); // stop any previous scan
+  stopScanning();
+
+  // Pass undefined (not empty string) to let ZXing pick the default camera
+  const id = (deviceId && deviceId.trim() !== '') ? deviceId : undefined;
 
   try {
-    // decodeFromVideoDevice returns a Promise<IScannerControls>
-    // The callback fires on every frame — result is null when no QR found
     scanControls = await codeReader.decodeFromVideoDevice(
-      deviceId || undefined,
+      id,
       video,
       (result, err) => {
-        // tick fps counter
         frameCount++;
         const now = Date.now();
         if (now - lastFpsTs >= 1000) {
@@ -320,10 +320,13 @@ async function startDecoding(deviceId) {
           lastFpsTs = now;
         }
         if (result) handleQRCode(result.getText());
-        // err is NotFoundException on empty frames — normal, ignore
       }
     );
+    // After ZXing has opened the camera, re-populate the dropdown with
+    // proper labels (they're only available after permission is granted)
+    await populateCameras();
   } catch(e) {
+    showScanStatus('err', 'Camera error: ' + e.message);
     showToast('Camera error: ' + e.message);
     console.error('decodeFromVideoDevice error:', e);
   }
@@ -336,19 +339,15 @@ camSelect.addEventListener('change', () => {
 startBtn.addEventListener('click', async () => {
   if (!codeReader) { showToast('Scanner not ready yet, please wait'); return; }
 
-  // Explicitly request camera permission first so the browser prompt appears
-  try {
-    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    tempStream.getTracks().forEach(t => t.stop());
-  } catch(e) {
-    showToast('Camera permission denied: ' + e.message);
-    return;
-  }
-
   landing.style.display = 'none';
   scannerWrap.style.display = 'block';
   state = 'waiting_header';
   resetState();
+
+  // Populate camera list — enumerateDevices works before permission on most
+  // browsers but labels will be empty until after permission is granted.
+  // We let ZXing's decodeFromVideoDevice trigger the actual permission prompt
+  // naturally when it calls getUserMedia internally.
   await populateCameras();
   await startDecoding(camSelect.value);
 });
